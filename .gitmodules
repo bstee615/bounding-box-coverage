@@ -1,0 +1,3 @@
+[submodule "Sentinel-2-Shapefile-Index"]
+	path = Sentinel-2-Shapefile-Index
+	url = https://github.com/justinelliotmeyers/Sentinel-2-Shapefile-Index.git
