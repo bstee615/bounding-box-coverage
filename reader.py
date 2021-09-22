@@ -12,7 +12,7 @@ import geopandas as gpd
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--input_file', default='input/results-1000.txt')
+    parser.add_argument('-i', '--input_file', default='input/results-all.txt')
     parser.add_argument('-o', '--output_dir', default='output')
     parser.add_argument('-s', '--shapefile_dir', default='Sentinel-2-Shapefile-Index')
     args = parser.parse_args()
@@ -29,13 +29,11 @@ def parse_args():
     
     return args
 
-def load_fields(input_file):
+def load_fields(input_file, skip, nrows, column_names):
     """Load field boundaries"""
     # Expects TSV (tab-separated values) data in the following form:
-    # FieldId	IsBoundingBox	PolygonWKT
-    # <int>	    <1 or 0>    	<WKT string>
-    print('Loading fields from', input_file)
-    df = pd.read_csv(input_file, encoding='utf-16', delimiter='\t')
+    df = pd.read_csv(input_file, encoding='utf-16', delimiter='\t', skiprows=skip, nrows=nrows, names=column_names)
+    print('Parsing WKT...')
     gdf = gpd.GeoDataFrame(df, crs='EPSG:4326', geometry=gpd.GeoSeries.from_wkt(df["PolygonWKT"]))
     print(len(gdf), 'fields')
     return gdf
@@ -54,15 +52,37 @@ if __name__ == '__main__':
     # KML can be displayed in Google Earth
     fiona.supported_drivers['KML'] = 'rw'
 
-    fields_df = load_fields(args.input_file)
     tile_df = load_tiles(args.shapefile_dir / "sentinel_2_index_shapefile.shp")
 
-    print('Joining...')
-    join = gpd.sjoin(tile_df, fields_df, how="inner", op='intersects')
-    join_by_name = join.groupby('Name')
-    join_counts = join_by_name.size().reset_index(name='counts').sort_values(by=['Name'])
-    print(len(join), 'joined results')
-    print(len(join_by_name), 'unique tiles')
+    skip = 1  # Skip header by default
+    max_rows_per_chunk = 20000
+    all_join_counts = None
+    i = 0
+    with open(args.input_file, encoding='utf-16') as f:
+        column_names = f.readline().strip().split('\t')
+    print('Loading file', args.input_file)
+    print('Max chunk size', max_rows_per_chunk)
+    while True:
+        print('Iteration', i)
+        print('Skip', skip)
+        fields_df = load_fields(args.input_file, skip, max_rows_per_chunk, column_names)
+        if len(fields_df) == 0:
+            break
+        skip += len(fields_df)
+        join = gpd.sjoin(tile_df, fields_df, how="inner", op='intersects')
+        print(len(join), 'rows in join')
+        join_by_name = join.groupby('Name')
+        join_counts = join_by_name.size().reset_index(name='counts').sort_values(by=['Name'])
+        if all_join_counts is None:
+            all_join_counts = join_counts
+        else:
+            all_join_counts = pd.concat([all_join_counts, join_counts]).groupby(['Name']).sum().reset_index()
+        print(len(all_join_counts), 'unique tiles')
+        # if i == 0:
+        #     join.to_file(args.output_dir / f'covering_tiles_{i}.kml', driver='KML')
+        del fields_df
+        del join
+        del join_by_name
+        i += 1
 
-    join_counts.to_csv(args.output_dir / 'counts.csv')
-    join.to_file(args.output_dir / 'covering_tiles.kml', driver='KML')
+    all_join_counts.to_csv(args.output_dir / 'counts.csv')
