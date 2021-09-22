@@ -1,65 +1,68 @@
-from io import StringIO
+"""
+Read geographic data for fields and tiles.
+Determine how many tiles are needed to cover all the fields.
+Assume all coordinates are in EPSG:4326 (World Geodetic System 1984, WGS84) lat/long.
+"""
+
 import pandas as pd
-from osgeo import ogr
-import tqdm
-import json
-import matplotlib.pyplot as plt
 import fiona
-
-fiona.supported_drivers['KML'] = 'rw'
-
-filename = 'results-1000.txt'
-df = pd.read_csv(filename, encoding='utf-16', delimiter='\t')
-print(df.columns)
-print('Values of IsBoundingBox:', df["IsBoundingBox"].value_counts())
-
-# with open('sentinel-2-tiling-grid/sentinel-2-tiling-grid.geojson') as f:
-#     sentinel_2_grid = ogr.CreateGeometryFromJson(f.read())
-# print(sentinel_2_grid)
-# file = ogr.Open("Sentinel-2-Shapefile-Index/sentinel_2_index_shapefile.shp")
-# shape = file.GetLayer(0)
-# #first feature of the shapefile
-# feature = shape.GetFeature(0)
-# first = feature.ExportToJson()
-# with open('results-grid.geojson', 'w') as f:
-#     f.write(first)
+import argparse
+from pathlib import Path
 import geopandas as gpd
-shapefile = gpd.read_file("Sentinel-2-Shapefile-Index/sentinel_2_index_shapefile.shp", crs='EPSG:4326')
-# print(shapefile)
-# shapefile.head().plot(cmap='tab20b')
-# shapefile.plot(cmap='tab20b')
-# plt.savefig('plot.png')
 
-df = gpd.GeoDataFrame(df, crs='EPSG:4326', geometry=gpd.GeoSeries.from_wkt(df["PolygonWKT"]))
-# print(df)
-print(len(shapefile), 'tiles')
-print(len(df), 'fields')
-# df.head(25).plot(cmap='tab20b')
-# plt.savefig('plot.png')
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input_file', default='input/results-1000.txt')
+    parser.add_argument('-o', '--output_dir', default='output')
+    parser.add_argument('-s', '--shapefile_dir', default='Sentinel-2-Shapefile-Index')
+    args = parser.parse_args()
 
-join = gpd.sjoin(shapefile, df, how="inner", op='intersects')
-print(len(join), 'joined results')
-gjoin = join.groupby('Name')
-print(len(gjoin), 'unique tiles')
+    args.input_file = Path(args.input_file)
+    assert args.input_file.exists(), args.input_file
 
-counts = join.groupby('Name').size().reset_index(name='counts')
-counts.to_csv('counts.csv')
+    args.output_dir = Path(args.output_dir)
+    if not args.output_dir.exists():
+        args.output_dir.mkdir()
+        
+    args.shapefile_dir = Path(args.shapefile_dir)
+    assert args.shapefile_dir.exists(), f'Tiling grid index not found at {args.shapefile_dir}, please get it from https://github.com/justinelliotmeyers/Sentinel-2-Shapefile-Index.git'
+    
+    return args
 
-join.to_file('join.kml', driver='KML')
+def load_fields(input_file):
+    """Load field boundaries"""
+    # Expects TSV (tab-separated values) data in the following form:
+    # FieldId	IsBoundingBox	PolygonWKT
+    # <int>	    <1 or 0>    	<WKT string>
+    print('Loading fields from', input_file)
+    df = pd.read_csv(input_file, encoding='utf-16', delimiter='\t')
+    gdf = gpd.GeoDataFrame(df, crs='EPSG:4326', geometry=gpd.GeoSeries.from_wkt(df["PolygonWKT"]))
+    print(len(gdf), 'fields')
+    return gdf
 
-# geomcol =  ogr.Geometry(ogr.wkbGeometryCollection)
-# for i, row in tqdm.tqdm(list(df.iterrows())):
-#     is_box = row["IsBoundingBox"]
-#     wkt = row["Polygon"]
-#     poly = ogr.CreateGeometryFromWkt("POLYGON ((-91.443026396117133 43.066392969633611, -91.443026396117133 43.073219630727273, -91.451884627529083 43.073219630727273, -91.451884627529083 43.066392969633611, -91.443026396117133 43.066392969633611))")
-#     if is_box == 0:
-#         poly = poly.Boundary()
-#     geomcol.AddGeometry(poly)
+def load_tiles(input_file):
+    """Load Sentinel-2 tiles"""
+    print('Loading tiles from', input_file)
+    gdf = gpd.read_file(input_file, crs='EPSG:4326')
+    print(len(gdf), 'tiles')
+    return gdf
 
+if __name__ == '__main__':
+    args = parse_args()
 
-# output = geomcol.ExportToKML()
-# out_filename = 'results-1000.kml'
-# output = geomcol.ExportToJson()
-# out_filename = 'results-1000.json'
-# with open(out_filename, 'w') as f:
-#     f.write(output)
+    # Add driver to export KML
+    # KML can be displayed in Google Earth
+    fiona.supported_drivers['KML'] = 'rw'
+
+    fields_df = load_fields(args.input_file)
+    tile_df = load_tiles(args.shapefile_dir / "sentinel_2_index_shapefile.shp")
+
+    print('Joining...')
+    join = gpd.sjoin(tile_df, fields_df, how="inner", op='intersects')
+    join_by_name = join.groupby('Name')
+    join_counts = join_by_name.size().reset_index(name='counts').sort_values(by=['Name'])
+    print(len(join), 'joined results')
+    print(len(join_by_name), 'unique tiles')
+
+    join_counts.to_csv(args.output_dir / 'counts.csv')
+    join.to_file(args.output_dir / 'covering_tiles.kml', driver='KML')
