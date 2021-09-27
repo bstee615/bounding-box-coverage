@@ -1,4 +1,8 @@
 input
 output
+output-big
+output-big-2
+output-without-covering
 .vscode
 .mypy_cache
+__pycache__
