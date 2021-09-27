@@ -1,0 +1,136 @@
+Loading tiles from Sentinel-2-Shapefile-Index/sentinel_2_index_shapefile.shp
+56984 tiles
+Loading file input/results-all.txt
+Max chunk size 10000
+Iteration 0
+Skip 1
+Parsing WKT...
+10000 fields
+14378 rows in join
+240 unique tiles
+Iteration 1
+Skip 10001
+Parsing WKT...
+10000 fields
+13832 rows in join
+361 unique tiles
+Iteration 2
+Skip 20001
+Parsing WKT...
+10000 fields
+14978 rows in join
+419 unique tiles
+Iteration 3
+Skip 30001
+Parsing WKT...
+10000 fields
+17046 rows in join
+445 unique tiles
+Iteration 4
+Skip 40001
+Parsing WKT...
+10000 fields
+14727 rows in join
+490 unique tiles
+Iteration 5
+Skip 50001
+Parsing WKT...
+10000 fields
+15506 rows in join
+541 unique tiles
+Iteration 6
+Skip 60001
+Parsing WKT...
+10000 fields
+13905 rows in join
+603 unique tiles
+Iteration 7
+Skip 70001
+Parsing WKT...
+10000 fields
+12540 rows in join
+637 unique tiles
+Iteration 8
+Skip 80001
+Parsing WKT...
+10000 fields
+14174 rows in join
+680 unique tiles
+Iteration 9
+Skip 90001
+Parsing WKT...
+10000 fields
+13838 rows in join
+726 unique tiles
+Iteration 10
+Skip 100001
+Parsing WKT...
+10000 fields
+12508 rows in join
+775 unique tiles
+Iteration 11
+Skip 110001
+Parsing WKT...
+10000 fields
+13043 rows in join
+808 unique tiles
+Iteration 12
+Skip 120001
+Parsing WKT...
+10000 fields
+12487 rows in join
+860 unique tiles
+Iteration 13
+Skip 130001
+Parsing WKT...
+10000 fields
+13678 rows in join
+911 unique tiles
+Iteration 14
+Skip 140001
+Parsing WKT...
+10000 fields
+13659 rows in join
+934 unique tiles
+Iteration 15
+Skip 150001
+Parsing WKT...
+10000 fields
+12769 rows in join
+989 unique tiles
+Iteration 16
+Skip 160001
+Parsing WKT...
+10000 fields
+13503 rows in join
+1050 unique tiles
+Iteration 17
+Skip 170001
+Parsing WKT...
+10000 fields
+16884 rows in join
+1080 unique tiles
+Iteration 18
+Skip 180001
+Parsing WKT...
+10000 fields
+22170 rows in join
+1090 unique tiles
+Iteration 19
+Skip 190001
+Parsing WKT...
+10000 fields
+14476 rows in join
+1133 unique tiles
+Iteration 20
+Skip 200001
+Parsing WKT...
+9012 fields
+11902 rows in join
+1184 unique tiles
+Iteration 21
+Skip 209013
+Parsing WKT...
+0 fields
+Done
+Total area: 0

@@ -59,8 +59,6 @@ if __name__ == '__main__':
     max_rows_per_chunk = 10000
     all_join_counts = None
     all_join_tiles = None
-    all_area = 0
-    all_polygon = None
     i = 0
     with open(args.input_file, encoding='utf-16') as f:
         column_names = f.readline().strip().split('\t')
@@ -73,15 +71,6 @@ if __name__ == '__main__':
         if len(fields_df) == 0:
             print('Done')
             break
-        projected_fields_df = fields_df.to_crs('EPSG:3857')
-        this_area = projected_fields_df.area.sum()
-        all_area += this_area
-        print('Area', this_area)
-        if all_polygon is None:
-            all_polygon = projected_fields_df.unary_union
-        else:
-            all_polygon = projected_fields_df.geometry.union(all_polygon)
-        print('Union area', all_polygon.area)
         skip += len(fields_df)
         join = gpd.sjoin(tile_df, fields_df, how="inner", op='intersects')
         print(len(join), 'rows in join')
@@ -105,8 +94,6 @@ if __name__ == '__main__':
         del join_tiles
         i += 1
 
-    print('Total area:', all_area)
-    print('Union area:', all_polygon.area)
     if not args.skip_save:
         all_join_tiles.to_file(args.output_dir / f'covering_tiles.kml', driver='KML')
         all_join_counts.to_csv(args.output_dir / 'counts.csv')
