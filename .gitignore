@@ -3,6 +3,7 @@ output
 output-big
 output-big-2
 output-without-covering
+output-before-proper-dedup
 .vscode
 .mypy_cache
 __pycache__
