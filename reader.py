@@ -33,6 +33,7 @@ def parse_args():
 def load_fields(input_file, skip, nrows, column_names):
     """Load field boundaries"""
     # Expects TSV (tab-separated values) data in the following form: FieldId\tPolygonWKT
+    # WKT coordinates are in lat/long (WGS84 which is used by most GIS software)
     df = pd.read_csv(input_file, encoding='utf-16', delimiter='\t', skiprows=skip, nrows=nrows, names=column_names)
     print('Parsing WKT...')
     gdf = gpd.GeoDataFrame(df, crs='EPSG:4326', geometry=gpd.GeoSeries.from_wkt(df["PolygonWKT"]))
@@ -41,6 +42,7 @@ def load_fields(input_file, skip, nrows, column_names):
 
 def load_tiles(input_file):
     """Load Sentinel-2 tiles"""
+    # WKT coordinates are in lat/long (WGS84 which is used by most GIS software)
     print('Loading tiles from', input_file)
     gdf = gpd.read_file(input_file, crs='EPSG:4326')
     print(len(gdf), 'tiles')
