@@ -45,6 +45,7 @@ def load_tiles(input_file):
     # WKT coordinates are in lat/long (WGS84 which is used by most GIS software)
     print('Loading tiles from', input_file)
     gdf = gpd.read_file(input_file, crs='EPSG:4326')
+    gdf = gdf.rename(columns={"Name": "TileName"})
     print(len(gdf), 'tiles')
     return gdf
 
@@ -59,8 +60,8 @@ if __name__ == '__main__':
 
     skip = 1  # Skip header by default
     max_rows_per_chunk = 10000
-    all_join_counts = None
-    all_join_tiles = None
+    all_tilename_fieldid = None
+    all_tilename_geometry = None
     i = 0
     with open(args.input_file, encoding='utf-16') as f:
         column_names = f.readline().strip().split('\t')
@@ -76,26 +77,31 @@ if __name__ == '__main__':
         skip += len(fields_df)
         join = gpd.sjoin(tile_df, fields_df, how="inner", op='intersects')
         print(len(join), 'rows in join')
-        join_by_name = join.groupby('Name')
-        join_counts = join_by_name.size().reset_index(name='counts').sort_values(by=['Name'])
-        if all_join_counts is None:
-            all_join_counts = join_counts
+
+        join_tilename_fieldid = join[["TileName", "FieldId"]].drop_duplicates()
+        if all_tilename_fieldid is None:
+            all_tilename_fieldid = join_tilename_fieldid
         else:
-            all_join_counts = pd.concat([all_join_counts, join_counts]).groupby(['Name']).sum().reset_index()
-        print(len(all_join_counts), 'unique tiles')
-        join_tiles = join[["Name", "geometry"]]
-        join_tiles.drop_duplicates()
-        if all_join_tiles is None:
-            all_join_tiles = join_tiles
+            all_tilename_fieldid = pd.concat([all_tilename_fieldid, join_tilename_fieldid]).drop_duplicates()
+        
+        join_tilename_geometry = join[["TileName", "geometry"]].drop_duplicates()
+        if all_tilename_geometry is None:
+            all_tilename_geometry = join_tilename_geometry
         else:
-            all_join_tiles = pd.concat([all_join_tiles, join_tiles])
-            all_join_tiles.drop_duplicates()
+            all_tilename_geometry = pd.concat([all_tilename_geometry, join_tilename_geometry]).drop_duplicates()
+        
+        print(len(all_tilename_fieldid), 'tile-field pairs')
+        print(len(all_tilename_geometry), 'unique tile geometry')
+
         del fields_df
         del join
-        del join_by_name
-        del join_tiles
+        del join_tilename_geometry
+        del join_tilename_fieldid
         i += 1
 
     if not args.skip_save:
-        all_join_tiles.to_file(args.output_dir / f'covering_tiles.kml', driver='KML')
-        all_join_counts.to_csv(args.output_dir / 'counts.csv')
+        all_tilename_fieldid["FieldId"] = pd.to_numeric(all_tilename_fieldid["FieldId"])
+        all_tilename_fieldid.to_csv(args.output_dir / 'tiles_to_fields.csv')
+        all_tilename_geometry.to_file(args.output_dir / f'covering_tiles.kml', driver='KML')
+        join_counts = all_tilename_fieldid.groupby(['TileName']).size().reset_index('counts')
+        join_counts.to_csv(args.output_dir / 'counts.csv')
