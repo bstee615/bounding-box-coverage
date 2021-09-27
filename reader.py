@@ -15,6 +15,7 @@ def parse_args():
     parser.add_argument('-i', '--input_file', default='input/results-all.txt')
     parser.add_argument('-o', '--output_dir', default='output')
     parser.add_argument('-s', '--shapefile_dir', default='Sentinel-2-Shapefile-Index')
+    parser.add_argument('--skip_save', action='store_true')
     args = parser.parse_args()
 
     args.input_file = Path(args.input_file)
@@ -31,7 +32,7 @@ def parse_args():
 
 def load_fields(input_file, skip, nrows, column_names):
     """Load field boundaries"""
-    # Expects TSV (tab-separated values) data in the following form:
+    # Expects TSV (tab-separated values) data in the following form: FieldId\tPolygonWKT
     df = pd.read_csv(input_file, encoding='utf-16', delimiter='\t', skiprows=skip, nrows=nrows, names=column_names)
     print('Parsing WKT...')
     gdf = gpd.GeoDataFrame(df, crs='EPSG:4326', geometry=gpd.GeoSeries.from_wkt(df["PolygonWKT"]))
@@ -55,8 +56,11 @@ if __name__ == '__main__':
     tile_df = load_tiles(args.shapefile_dir / "sentinel_2_index_shapefile.shp")
 
     skip = 1  # Skip header by default
-    max_rows_per_chunk = 20000
+    max_rows_per_chunk = 10000
     all_join_counts = None
+    all_join_tiles = None
+    all_area = 0
+    all_polygon = None
     i = 0
     with open(args.input_file, encoding='utf-16') as f:
         column_names = f.readline().strip().split('\t')
@@ -67,7 +71,17 @@ if __name__ == '__main__':
         print('Skip', skip)
         fields_df = load_fields(args.input_file, skip, max_rows_per_chunk, column_names)
         if len(fields_df) == 0:
+            print('Done')
             break
+        projected_fields_df = fields_df.to_crs('EPSG:3857')
+        this_area = projected_fields_df.area.sum()
+        all_area += this_area
+        print('Area', this_area)
+        if all_polygon is None:
+            all_polygon = projected_fields_df.unary_union
+        else:
+            all_polygon = projected_fields_df.geometry.union(all_polygon)
+        print('Union area', all_polygon.area)
         skip += len(fields_df)
         join = gpd.sjoin(tile_df, fields_df, how="inner", op='intersects')
         print(len(join), 'rows in join')
@@ -78,11 +92,21 @@ if __name__ == '__main__':
         else:
             all_join_counts = pd.concat([all_join_counts, join_counts]).groupby(['Name']).sum().reset_index()
         print(len(all_join_counts), 'unique tiles')
-        # if i == 0:
-        #     join.to_file(args.output_dir / f'covering_tiles_{i}.kml', driver='KML')
+        join_tiles = join[["Name", "geometry"]]
+        join_tiles.drop_duplicates()
+        if all_join_tiles is None:
+            all_join_tiles = join_tiles
+        else:
+            all_join_tiles = pd.concat([all_join_tiles, join_tiles])
+            all_join_tiles.drop_duplicates()
         del fields_df
         del join
         del join_by_name
+        del join_tiles
         i += 1
 
-    all_join_counts.to_csv(args.output_dir / 'counts.csv')
+    print('Total area:', all_area)
+    print('Union area:', all_polygon.area)
+    if not args.skip_save:
+        all_join_tiles.to_file(args.output_dir / f'covering_tiles.kml', driver='KML')
+        all_join_counts.to_csv(args.output_dir / 'counts.csv')
