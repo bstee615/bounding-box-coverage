@@ -1,5 +1,7 @@
 input
 output
+output_split*
+*.log
 output-big
 output-big-2
 output-without-covering
