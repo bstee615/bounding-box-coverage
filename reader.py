@@ -13,9 +13,10 @@ import geopandas as gpd
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input_file', default='input/results-all.txt')
-    parser.add_argument('-o', '--output_dir', default='output')
-    parser.add_argument('-s', '--shapefile_dir', default='Sentinel-2-Shapefile-Index')
+    parser.add_argument('-o', '--output_dir')
+    parser.add_argument('-t', '--tiles_file')
     parser.add_argument('--skip_save', action='store_true')
+    parser.add_argument('--test', action='store_true')
     args = parser.parse_args()
 
     args.input_file = Path(args.input_file)
@@ -25,8 +26,8 @@ def parse_args():
     if not args.output_dir.exists():
         args.output_dir.mkdir()
         
-    args.shapefile_dir = Path(args.shapefile_dir)
-    assert args.shapefile_dir.exists(), f'Tiling grid index not found at {args.shapefile_dir}, please get it from https://github.com/justinelliotmeyers/Sentinel-2-Shapefile-Index.git'
+    args.tiles_file = Path(args.tiles_file)
+    assert args.tiles_file.exists(), f'Tiling grid index not found at {args.tiles_file}'
     
     return args
 
@@ -44,7 +45,14 @@ def load_tiles(input_file):
     """Load Sentinel-2 tiles"""
     # WKT coordinates are in lat/long (WGS84 which is used by most GIS software)
     print('Loading tiles from', input_file)
-    gdf = gpd.read_file(input_file, crs='EPSG:4326')
+    if input_file.suffix == '.kml':
+        gdf = gpd.read_file(input_file, driver='KML', crs='EPSG:4326')
+    if input_file.suffix == '.json':
+        gdf = gpd.read_file(input_file, driver='GeoJSON', crs='EPSG:4326')
+    elif input_file.suffix == '.shp':
+        gdf = gpd.read_file(input_file, crs='EPSG:4326')
+    else:
+        raise NotImplementedError(input_file.suffix)
     gdf = gdf.rename(columns={"Name": "TileName"})
     print(len(gdf), 'tiles')
     return gdf
@@ -55,8 +63,9 @@ if __name__ == '__main__':
     # Add driver to export KML
     # KML can be displayed in Google Earth
     fiona.supported_drivers['KML'] = 'rw'
+    gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
 
-    tile_df = load_tiles(args.shapefile_dir / "sentinel_2_index_shapefile.shp")
+    tile_df = load_tiles(args.tiles_file)
 
     skip = 1  # Skip header by default
     max_rows_per_chunk = 10000
@@ -98,10 +107,13 @@ if __name__ == '__main__':
         del join_tilename_geometry
         del join_tilename_fieldid
         i += 1
+        if args.test:
+            break
 
     if not args.skip_save:
         all_tilename_fieldid["FieldId"] = pd.to_numeric(all_tilename_fieldid["FieldId"])
         all_tilename_fieldid.to_csv(args.output_dir / 'tiles_to_fields.csv')
+        all_tilename_geometry.to_file(args.output_dir / 'covering_tiles.json', driver='GeoJSON')
         all_tilename_geometry.to_file(args.output_dir / f'covering_tiles.kml', driver='KML')
-        join_counts = all_tilename_fieldid.groupby(['TileName']).size().reset_index('counts')
+        join_counts = all_tilename_fieldid.groupby(['TileName']).size().reset_index()
         join_counts.to_csv(args.output_dir / 'counts.csv')
