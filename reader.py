@@ -31,11 +31,15 @@ def parse_args():
     
     return args
 
-def load_fields(input_file, skip, nrows, column_names):
+def load_fields(input_file, skip, nrows, column_names, delimiter='\t', encoding='utf-16', filter_fn=None):
     """Load field boundaries"""
     # Expects TSV (tab-separated values) data in the following form: FieldId\tPolygonWKT
     # WKT coordinates are in lat/long (WGS84 which is used by most GIS software)
-    df = pd.read_csv(input_file, encoding='utf-16', delimiter='\t', skiprows=skip, nrows=nrows, names=column_names)
+    df = pd.read_csv(input_file, encoding=encoding, delimiter=delimiter, skiprows=skip, nrows=nrows, names=column_names)
+    df = df.dropna()
+    df["FieldId"] = df["FieldId"].astype(int)
+    if filter_fn is not None:
+        df = filter_fn(df)
     print('Parsing WKT...')
     gdf = gpd.GeoDataFrame(df, crs='EPSG:4326', geometry=gpd.GeoSeries.from_wkt(df["PolygonWKT"]))
     print(len(gdf), 'fields')
